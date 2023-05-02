@@ -1,0 +1,191 @@
+variables:
+    {current.version} = "1.0"
+
+options:
+    ! : &2[&6System&2]&f
+
+# 랜덤 박스 설정 관련 구문
+function openCrateSettingGui(p: player, id: string):
+    set {_inv} to chest inventory with 3 rows named "상자 설정 - %{_id}%"
+    loop {crate.items::%{_id}%::*}:
+        set slot (loop-index parsed as integer) of {_inv} to loop-value
+    open {_inv} to {_p}
+
+function openCrateResult(p: player, id: string):
+    set {_inv} to chest inventory with 1 rows named "결과 확인 [%{_id}%&r]"
+    set {_random} to random integer between 0 and 100
+    set {_chance} to 0
+    loop {crate.items::%{_id}%::*}:
+        add {crate.chance::%{_id}%::%loop-index%} to {_chance}
+        if {_random} <= {_chance}:
+            set {_items} to loop-value
+            stop loop
+
+    set slot 4 of {_inv} to {_items}
+    open {_inv} to {_p}
+
+function changeChance(id: string, ind: string, chance: number):
+    if {crate.items::%{_id}%::%{_ind}%} is not set:
+        stop
+    set {crate.chance::%{_id}%::%{_ind}%} to {_chance}
+
+function changeCrate(id: string, inv: inventory):
+    set {_ind} to 0
+    loop 27 times:
+        if slot {_ind} of {_inv} is not air:
+            set {crate.items::%{_id}%::%{_ind}%} to slot {_ind} of {_inv}
+            if {crate.chance::%{_id}%::%{_ind}%} is not set:
+                set {crate.chance::%{_id}%::%{_ind}%} to 0
+        else:
+            delete {crate.items::%{_id}%::%{_ind}%}
+            delete {crate.chance::%{_id}%::%{_ind}%}
+        add 1 to {_ind}
+
+function deleteCrate(id: string):
+    remove {_id} from {crate.list::*}
+    delete {crate.items::%{_id}%::*}
+    delete {crate.chance::%{_id}%::*}
+
+
+function checkCrate(p: player, id: string):
+    message "----- [ %{_id}% 상자 등장 확률 ] -----" to {_p}
+    loop {crate.items::%{_id}%::*}:
+        set {_chance} to {crate.chance::%{_id}%::%loop-index%}
+        message "%loop-value% : %{_chance}%%%" to {_p}
+
+command /랜덤박스 [<string>] [<string>] [<string>] [<string>]:
+    permission: rbx.setup
+    trigger:
+
+        if arg-1 is "생성":
+            if arg-2 is not set:
+                message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+                stop
+            if {crate.list::*} contains arg-2:
+                message "{@!} 이미 존재하는 이름입니다." to player
+                stop
+            message "{@!} %arg-2% 상자를 생성하였습니다." to player
+            add arg-2 to {crate.list::*}
+
+        else if arg-1 is "삭제":
+            if arg-2 is not set:
+                message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+                stop
+            if {crate.list::*} doesn't contain arg-2:
+                message "{@!} 존재하지 않는 랜덤 박스입니다." to player
+                stop
+            message "{@!} %arg-2% 박스를 삭제하였습니다." to player
+            deleteCrate(arg-2)
+
+        else if arg-1 is "설정":
+            if arg-2 is not set:
+                message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+                stop
+            if {crate.list::*} doesn't contain arg-2:
+                message "{@!} 존재하지 않는 랜덤 박스입니다." to player
+                stop
+            openCrateSettingGui(player, arg-2)
+
+        else if arg-1 is "확률":
+            if arg-2 is not set:
+                message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+                stop
+            if {crate.list::*} doesn't contain arg-2:
+                message "{@!} 존재하지 않는 랜덤 박스입니다." to player
+                stop
+            if arg-3 is not set:
+                message "{@!} 슬롯 번호를 지정해주세요" to player
+                stop
+            if arg-3 parsed as integer is not set:
+                message "{@!} 슬롯 번호는 0~26만 적을 수 있습니다." to player
+                stop
+            if arg-4 is not set:
+                message "{@!} 확률을 입력해주세요" to player
+                stop
+            if arg-4 parsed as number is not set:
+                message "{@!} 확률은 숫자로 입력해주세요." to player
+                stop
+            if arg-4 parsed as number < 0:
+                message "{@!} 확률은 음수로 지정할 수 없습니다." to player
+                stop
+            if {crate.items::%arg-2%::%arg-3%} is not set:
+                message "{@!} 해당 슬롯에는 아이템이 존재하지 않습니다." to player
+                stop
+            changeChance(arg-2, arg-3, (arg-4 parsed as number))
+            message "{@!} 확률을 지정했습니다." to player
+
+        else if arg-1 is "확인":
+            if arg-2 is not set:
+                message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+                stop
+            if {crate.list::*} doesn't contain arg-2:
+                message "{@!} 존재하지 않는 랜덤 박스입니다." to player
+                stop
+            checkCrate(player, arg-2)
+
+        else if arg-1 is "목록":
+            message " [ E12 Crate System - RBX List ] " to player
+            message "%{crate.list::*}%" to player
+
+on inventory close:
+    if name of player's current inventory contains "상자 설정":
+        set {_crkey::*} to name of player's current inventory parsed as "상자 설정 - %string%"
+        set {_name} to {_crkey::1}
+        if {_name} is not set:
+            stop
+        if {crate.list::*} doesn't contain {_name}:
+            stop
+        changeCrate({_name}, (player's current inventory))
+        message "{@!} 상자 설정을 완료하였습니다." to player
+
+on inventory click:
+    if name of player's current inventory contains "상자 확인":
+        cancel event
+
+
+# 랜덤박스 키 관련 구문
+command /랜덤키 [<string>]:
+    permission: rbx.key
+    trigger:
+        if arg-1 is not set:
+            message "{@!} 랜덤 박스의 이름을 입력해주세요." to player
+            stop
+        if {crate.list::*} doesn't contain arg-1:
+            message "{@!} 존재하지 않는 랜덤 박스입니다." to player
+            stop
+        give 1 tripwire hook named "%arg-1% 열쇠" to player
+
+on right click:
+    if {crate.enable::%player%} is true:
+        message "{@!} 열고 있는 상자가 있습니다." to player
+        stop
+
+    if name of player's tool contain "열쇠":
+        cancel event
+        if event-block is end portal frame:
+            set {crate.enable::%event-player%} to true
+
+            set {_tn} to name of event-player's tool
+            replace all " 열쇠" with "" in {_tn}
+            remove 1 of tool from tool
+
+            send title "&e%{_tn}% 상자&f를 열었습니다." with subtitle "3초 후 결과를 확인합니다." to player
+
+            drawRings particle "redstone", RGB 80, 255, 255, center player, id "%player%", rainbowMode true, randomRotation true, animated false, radius 1, ringCount 4, ringDensity 10, visibleRange 32, pulseDelay 2
+
+            wait 1 seconds
+            send title "&e%{_tn}% 상자&f를 열었습니다." with subtitle "2초 후 결과를 확인합니다." to player
+            wait 1 seconds
+            send title "&e%{_tn}% 상자&f를 열었습니다." with subtitle "1초 후 결과를 확인합니다." to player
+            wait 1 seconds
+
+            set {_random} to random integer between 0 and 100
+            set {_chance} to 1
+            send title "&e%{_tn}% 상자&f를 열었습니다." with subtitle "축하합니다! 아이템을 가져가세요! 닫으면 다시 가져갈 수 없습니다." to player for 1 seconds
+
+            wait 20 ticks
+
+            openCrateResult(player, {_tn})
+
+            stopeffect "%event-player%"
+            delete {crate.enable::%event-player%}
